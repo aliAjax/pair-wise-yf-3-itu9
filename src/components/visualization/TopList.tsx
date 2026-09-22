@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { SmellMemory } from '../../utils/constants';
 import { getTopIntensityMemories, contrastTextColor } from '../../utils/helpers';
 import { getSeasonInfo, getSmellTypeInfo } from '../../utils/constants';
+import { Lock } from 'lucide-react';
 
 interface Props {
   memories: SmellMemory[];
@@ -24,6 +25,7 @@ export default function TopList({ memories, onSelect }: Props) {
           top5.map((m, idx) => {
             const season = getSeasonInfo(m.season);
             const stype = getSmellTypeInfo(m.smell_type);
+            const sealed = !!m.capsule;
             return (
               <button
                 key={m.id}
@@ -31,21 +33,25 @@ export default function TopList({ memories, onSelect }: Props) {
                 className="w-full group flex items-center gap-3 p-2.5 rounded-xl bg-paper-100/60 hover:bg-paper-200/80 transition-all duration-200 text-left"
               >
                 <div
-                  className="w-9 h-9 flex-shrink-0 rounded-lg flex items-center justify-center text-lg font-bold shadow-sm"
+                  className={`w-9 h-9 flex-shrink-0 rounded-lg flex items-center justify-center font-bold shadow-sm ${
+                    sealed ? 'text-lavender-600' : 'text-lg'
+                  }`}
                   style={{
                     background: m.color_association,
-                    color: contrastTextColor(m.color_association),
+                    color: sealed ? undefined : contrastTextColor(m.color_association),
                   }}
                 >
-                  {idx + 1}
+                  {sealed ? <Lock className="w-4 h-4" /> : idx + 1}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 mb-0.5">
                     <span className="text-base">{season.emoji}</span>
-                    <span className="text-base">{stype.emoji}</span>
+                    {!sealed && <span className="text-base">{stype.emoji}</span>}
                     <span className="text-sm font-medium text-ink-800 truncate">{m.location}</span>
                   </div>
-                  <div className="text-[11px] text-ink-700/60 truncate">{m.source_guess}</div>
+                  <div className={`text-[11px] truncate ${sealed ? 'text-lavender-600/80 italic' : 'text-ink-700/60'}`}>
+                    {sealed ? '气味来源已封存' : m.source_guess}
+                  </div>
                 </div>
                 <div className="flex flex-col items-end">
                   <div className="text-xl font-serif font-bold text-ochre-600 leading-none">
@@ -61,3 +67,4 @@ export default function TopList({ memories, onSelect }: Props) {
     </div>
   );
 }
+

@@ -2,6 +2,19 @@ export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 export type SmellType = 'woody' | 'floral' | 'fruity' | 'earthy' | 'spicy' | 'sweet' | 'musty' | 'fresh' | 'burnt' | 'other';
 export type Emotion = 'warm' | 'nostalgic' | 'peaceful' | 'melancholy' | 'joyful' | 'uncomfortable' | 'surprising';
 
+/**
+ * 时间胶囊数据（数据层）。
+ * 字段存在即表示该记忆处于封存中；解锁（到期或凭线索提前打开）后该字段被移除。
+ */
+export interface CapsuleData {
+  /** 封存时刻 ISO 字符串 */
+  sealed_at: string;
+  /** 解锁日，本地日期 YYYY-MM-DD */
+  unlock_date: string;
+  /** 完整解锁线索（存储规范化后的原文，用于提前解锁比对） */
+  clue: string;
+}
+
 export interface SmellMemory {
   id: string;
   location: string;
@@ -16,6 +29,8 @@ export interface SmellMemory {
   want_again: boolean;
   created_at: string;
   updated_at: string;
+  /** 封存中的时间胶囊；不存在表示记忆未封存（含已解锁） */
+  capsule?: CapsuleData;
 }
 
 export const SEASONS: { value: Season; label: string; emoji: string }[] = [

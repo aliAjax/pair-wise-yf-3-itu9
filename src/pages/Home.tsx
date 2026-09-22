@@ -4,11 +4,13 @@ import FilterPanel from '../components/FilterPanel';
 import VisualizationPanel from '../components/VisualizationPanel';
 import MemoryCard from '../components/MemoryCard';
 import MemoryModal from '../components/MemoryModal';
-import { useMemoryStore } from '../store/memoryStore';
+import CapsuleModal from '../capsule/CapsuleModal';
+import { useCapsuleClock } from '../capsule/useCapsuleClock';
+import { useMemoryStore, maskSealedMemory } from '../store/memoryStore';
 import type { Filters } from '../utils/helpers';
 import { filterMemories } from '../utils/helpers';
 import type { SmellMemory } from '../utils/constants';
-import type { MemoryInput } from '../store/memoryStore';
+import type { MemoryInput, SealCapsuleInput } from '../store/memoryStore';
 import { BookOpenCheck } from 'lucide-react';
 
 const defaultFilters: Filters = {
@@ -18,19 +20,32 @@ const defaultFilters: Filters = {
 };
 
 export default function Home() {
-  const { memories, initIfEmpty, addMemory, updateMemory, deleteMemory } = useMemoryStore();
+  const {
+    memories, initIfEmpty, addMemory, updateMemory, deleteMemory,
+    sealCapsule, unlockCapsuleEarly,
+  } = useMemoryStore();
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SmellMemory | null>(null);
+  const [sealTarget, setSealTarget] = useState<SmellMemory | null>(null);
+
+  // 时间胶囊心跳：到期自动解锁，并提供倒计时所需的当前时间
+  const now = useCapsuleClock();
 
   useEffect(() => {
     initIfEmpty();
   }, [initIfEmpty]);
 
+  // 展示层统一使用脱敏后的数据：封存记忆的来源、正文、颜色不会进入筛选、统计与列表
+  const displayMemories = useMemo(
+    () => memories.map(maskSealedMemory),
+    [memories],
+  );
+
   const filteredMemories = useMemo(
-    () => filterMemories(memories, filters),
-    [memories, filters],
+    () => filterMemories(displayMemories, filters),
+    [displayMemories, filters],
   );
 
   const handleFilterChange = (key: keyof Filters, value: string) => {
@@ -39,7 +54,11 @@ export default function Home() {
   const resetFilters = () => setFilters(defaultFilters);
 
   const openAddModal = () => { setEditing(null); setModalOpen(true); };
-  const openEditModal = (m: SmellMemory) => { setEditing(m); setModalOpen(true); };
+  const openEditModal = (m: SmellMemory) => {
+    if (m.capsule) return; // 封存中不可编辑
+    setEditing(m);
+    setModalOpen(true);
+  };
 
   const handleSubmit = (data: MemoryInput) => {
     if (editing) {
@@ -51,12 +70,30 @@ export default function Home() {
 
   const handleDelete = (id: string) => {
     const target = memories.find((m) => m.id === id);
+    if (target?.capsule) return; // 封存中不可移除
     const msg = `确认删除「${target?.location ?? '这段记忆'}」吗？`;
     if (window.confirm(msg)) {
       deleteMemory(id);
       if (expandedId === id) setExpandedId(null);
     }
   };
+
+  const openSealModal = (m: SmellMemory) => {
+    if (m.capsule) return; // 封存中不可再次封存
+    // 弹窗内校验规则需要读到真实字段，这里传原始记忆
+    const raw = memories.find((x) => x.id === m.id) ?? m;
+    setSealTarget(raw);
+  };
+
+  const handleSealSubmit = (input: SealCapsuleInput) => {
+    if (!sealTarget) return { ok: false, message: '没有找到这条记忆' };
+    const result = sealCapsule(sealTarget.id, input);
+    if (result.ok) setSealTarget(null);
+    return result;
+  };
+
+  const handleEarlyUnlock = (id: string, clue: string) =>
+    unlockCapsuleEarly(id, clue);
 
   const scrollToCard = (id: string) => {
     setExpandedId(id);
@@ -122,10 +159,13 @@ export default function Home() {
                   <MemoryCard
                     memory={m}
                     index={idx}
+                    now={now}
                     isExpanded={expandedId === m.id}
                     onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
                     onEdit={() => openEditModal(m)}
                     onDelete={() => handleDelete(m.id)}
+                    onSeal={() => openSealModal(m)}
+                    onEarlyUnlock={(clue) => handleEarlyUnlock(m.id, clue)}
                   />
                 </div>
               ))}
@@ -143,6 +183,13 @@ export default function Home() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         editingData={editing}
+      />
+
+      <CapsuleModal
+        isOpen={!!sealTarget}
+        memory={sealTarget}
+        onClose={() => setSealTarget(null)}
+        onSubmit={handleSealSubmit}
       />
     </div>
   );
