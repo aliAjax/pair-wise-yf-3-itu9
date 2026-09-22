@@ -6,10 +6,11 @@ import TopList from './visualization/TopList';
 
 interface Props {
   memories: SmellMemory[];
+  lockedIds: Set<string>;
   onSelect: (id: string) => void;
 }
 
-export default function VisualizationPanel({ memories, onSelect }: Props) {
+export default function VisualizationPanel({ memories, lockedIds, onSelect }: Props) {
   if (memories.length === 0) return null;
 
   return (
@@ -22,7 +23,7 @@ export default function VisualizationPanel({ memories, onSelect }: Props) {
         <IntensityChart memories={memories} />
         <AvgGauge memories={memories} />
         <HumidityScatter memories={memories} />
-        <TopList memories={memories} onSelect={onSelect} />
+        <TopList memories={memories} lockedIds={lockedIds} onSelect={onSelect} />
       </div>
     </section>
   );

@@ -2,13 +2,17 @@ import { useMemo } from 'react';
 import type { SmellMemory } from '../../utils/constants';
 import { getTopIntensityMemories, contrastTextColor } from '../../utils/helpers';
 import { getSeasonInfo, getSmellTypeInfo } from '../../utils/constants';
+import { Lock } from 'lucide-react';
+
+const LOCKED_COLOR = '#CBB993'; // 封存期间替代颜色联想的中性色
 
 interface Props {
   memories: SmellMemory[];
+  lockedIds: Set<string>;
   onSelect?: (id: string) => void;
 }
 
-export default function TopList({ memories, onSelect }: Props) {
+export default function TopList({ memories, lockedIds, onSelect }: Props) {
   const top5 = useMemo(() => getTopIntensityMemories(memories, 5), [memories]);
 
   return (
@@ -24,6 +28,8 @@ export default function TopList({ memories, onSelect }: Props) {
           top5.map((m, idx) => {
             const season = getSeasonInfo(m.season);
             const stype = getSmellTypeInfo(m.smell_type);
+            const locked = lockedIds.has(m.id);
+            const displayColor = locked ? LOCKED_COLOR : m.color_association;
             return (
               <button
                 key={m.id}
@@ -33,8 +39,8 @@ export default function TopList({ memories, onSelect }: Props) {
                 <div
                   className="w-9 h-9 flex-shrink-0 rounded-lg flex items-center justify-center text-lg font-bold shadow-sm"
                   style={{
-                    background: m.color_association,
-                    color: contrastTextColor(m.color_association),
+                    background: displayColor,
+                    color: contrastTextColor(displayColor),
                   }}
                 >
                   {idx + 1}
@@ -45,7 +51,15 @@ export default function TopList({ memories, onSelect }: Props) {
                     <span className="text-base">{stype.emoji}</span>
                     <span className="text-sm font-medium text-ink-800 truncate">{m.location}</span>
                   </div>
-                  <div className="text-[11px] text-ink-700/60 truncate">{m.source_guess}</div>
+                  <div className="text-[11px] text-ink-700/60 truncate">
+                    {locked ? (
+                      <span className="inline-flex items-center gap-1">
+                        <Lock className="w-3 h-3" /> 时间胶囊封存中
+                      </span>
+                    ) : (
+                      m.source_guess
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-col items-end">
                   <div className="text-xl font-serif font-bold text-ochre-600 leading-none">

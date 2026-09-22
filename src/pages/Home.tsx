@@ -4,7 +4,11 @@ import FilterPanel from '../components/FilterPanel';
 import VisualizationPanel from '../components/VisualizationPanel';
 import MemoryCard from '../components/MemoryCard';
 import MemoryModal from '../components/MemoryModal';
+import CapsuleModal from '../components/CapsuleModal';
+import type { CapsuleModalState } from '../components/CapsuleModal';
 import { useMemoryStore } from '../store/memoryStore';
+import { useCapsuleStore } from '../store/capsuleStore';
+import { isCapsuleLocked } from '../utils/capsuleRules';
 import type { Filters } from '../utils/helpers';
 import { filterMemories } from '../utils/helpers';
 import type { SmellMemory } from '../utils/constants';
@@ -19,14 +23,35 @@ const defaultFilters: Filters = {
 
 export default function Home() {
   const { memories, initIfEmpty, addMemory, updateMemory, deleteMemory } = useMemoryStore();
+  const { capsules, sealCapsule, earlyUnlock, removeCapsule } = useCapsuleStore();
   const [filters, setFilters] = useState<Filters>(defaultFilters);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<SmellMemory | null>(null);
+  const [capsuleModal, setCapsuleModal] = useState<CapsuleModalState>(null);
+  // 每分钟重算一次锁定状态，让到期的胶囊自动解锁
+  const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
     initIfEmpty();
   }, [initIfEmpty]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const lockedIds = useMemo(
+    () => new Set(
+      memories
+        .filter((m) => {
+          const c = capsules[m.id];
+          return c !== undefined && isCapsuleLocked(c, now);
+        })
+        .map((m) => m.id),
+    ),
+    [memories, capsules, now],
+  );
 
   const filteredMemories = useMemo(
     () => filterMemories(memories, filters),
@@ -39,7 +64,11 @@ export default function Home() {
   const resetFilters = () => setFilters(defaultFilters);
 
   const openAddModal = () => { setEditing(null); setModalOpen(true); };
-  const openEditModal = (m: SmellMemory) => { setEditing(m); setModalOpen(true); };
+  const openEditModal = (m: SmellMemory) => {
+    if (lockedIds.has(m.id)) return; // 封存期间停用编辑
+    setEditing(m);
+    setModalOpen(true);
+  };
 
   const handleSubmit = (data: MemoryInput) => {
     if (editing) {
@@ -50,12 +79,24 @@ export default function Home() {
   };
 
   const handleDelete = (id: string) => {
+    if (lockedIds.has(id)) return; // 封存期间停用移除
     const target = memories.find((m) => m.id === id);
     const msg = `确认删除「${target?.location ?? '这段记忆'}」吗？`;
     if (window.confirm(msg)) {
       deleteMemory(id);
+      removeCapsule(id);
       if (expandedId === id) setExpandedId(null);
     }
+  };
+
+  const openSealModal = (m: SmellMemory) => {
+    if (lockedIds.has(m.id)) return; // 封存期间停用再次封存
+    setCapsuleModal({ mode: 'seal', memory: m });
+  };
+  const openUnlockModal = (m: SmellMemory) => {
+    const capsule = capsules[m.id];
+    if (!capsule || !lockedIds.has(m.id)) return;
+    setCapsuleModal({ mode: 'unlock', memory: m, capsule });
   };
 
   const scrollToCard = (id: string) => {
@@ -68,7 +109,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <Header onAdd={openAddModal} memoryCount={memories.length} />
+      <Header onAdd={openAddModal} memoryCount={memories.length} capsuleCount={lockedIds.size} />
 
       <main className="container max-w-6xl pb-20">
         <FilterPanel
@@ -78,7 +119,7 @@ export default function Home() {
           resultCount={filteredMemories.length}
         />
 
-        <VisualizationPanel memories={filteredMemories} onSelect={scrollToCard} />
+        <VisualizationPanel memories={filteredMemories} lockedIds={lockedIds} onSelect={scrollToCard} />
 
         <section className="mt-2">
           <div className="flex items-center justify-between mb-4">
@@ -123,9 +164,13 @@ export default function Home() {
                     memory={m}
                     index={idx}
                     isExpanded={expandedId === m.id}
+                    capsule={capsules[m.id] ?? null}
+                    locked={lockedIds.has(m.id)}
                     onToggle={() => setExpandedId(expandedId === m.id ? null : m.id)}
                     onEdit={() => openEditModal(m)}
                     onDelete={() => handleDelete(m.id)}
+                    onSeal={() => openSealModal(m)}
+                    onRequestUnlock={() => openUnlockModal(m)}
                   />
                 </div>
               ))}
@@ -143,6 +188,16 @@ export default function Home() {
         onClose={() => setModalOpen(false)}
         onSubmit={handleSubmit}
         editingData={editing}
+      />
+
+      <CapsuleModal
+        state={capsuleModal}
+        onClose={() => setCapsuleModal(null)}
+        onSeal={(memory, input) => {
+          const res = sealCapsule(memory, input);
+          return res.ok === false ? res.error : null;
+        }}
+        onUnlock={(memoryId, attempt) => earlyUnlock(memoryId, attempt)}
       />
     </div>
   );

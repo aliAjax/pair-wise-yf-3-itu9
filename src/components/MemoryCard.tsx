@@ -1,24 +1,38 @@
 import type { SmellMemory } from '../utils/constants';
 import { getSeasonInfo, getSmellTypeInfo, getEmotionInfo } from '../utils/constants';
 import { formatDate, contrastTextColor } from '../utils/helpers';
-import { Pencil, Trash2, ChevronDown, ChevronUp, Heart } from 'lucide-react';
+import type { Capsule } from '../utils/capsuleRules';
+import { daysUntilUnlock } from '../utils/capsuleRules';
+import { CapsuleLockedPanel } from './CapsuleModal';
+import { Pencil, Trash2, ChevronDown, ChevronUp, Heart, Lock, Hourglass, Unlock } from 'lucide-react';
+
+const LOCKED_COLOR = '#D8CBB2'; // 封存期间替代颜色联想的中性色
 
 interface Props {
   memory: SmellMemory;
   index: number;
   isExpanded: boolean;
+  capsule: Capsule | null;
+  locked: boolean;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSeal: () => void;
+  onRequestUnlock: () => void;
 }
 
-export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit, onDelete }: Props) {
+export default function MemoryCard({
+  memory, index, isExpanded, capsule, locked,
+  onToggle, onEdit, onDelete, onSeal, onRequestUnlock,
+}: Props) {
   const season = getSeasonInfo(memory.season);
   const stype = getSmellTypeInfo(memory.smell_type);
   const emotion = getEmotionInfo(memory.emotion);
 
   const intensityWidth = `${memory.intensity * 10}%`;
   const humidityWidth = `${memory.humidity * 10}%`;
+
+  const displayColor = locked ? LOCKED_COLOR : memory.color_association;
 
   return (
     <article
@@ -28,7 +42,7 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
       <div className="flex">
         <div
           className="w-2 shrink-0 relative overflow-hidden transition-all duration-300 group-hover:w-3"
-          style={{ backgroundColor: memory.color_association }}
+          style={{ backgroundColor: displayColor }}
         >
           <div className="absolute inset-0 opacity-30"
             style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.6) 0%, transparent 40%, rgba(0,0,0,0.15) 100%)' }} />
@@ -45,19 +59,27 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
                   {memory.location}
                 </h3>
                 <p className="text-sm text-ink-700/70 mt-0.5 truncate">
-                  <span className="mr-1" style={{ color: stype.color }}>{stype.emoji}</span>
-                  {memory.source_guess}
+                  {locked ? (
+                    <span className="inline-flex items-center gap-1 text-ink-700/50">
+                      <Lock className="w-3.5 h-3.5" /> 来源已封存
+                    </span>
+                  ) : (
+                    <>
+                      <span className="mr-1" style={{ color: stype.color }}>{stype.emoji}</span>
+                      {memory.source_guess}
+                    </>
+                  )}
                 </p>
               </div>
               <div
                 className="w-9 h-9 rounded-lg shrink-0 flex items-center justify-center shadow-sm border-2 border-paper-50"
                 style={{
-                  backgroundColor: memory.color_association,
-                  color: contrastTextColor(memory.color_association),
+                  backgroundColor: displayColor,
+                  color: contrastTextColor(displayColor),
                 }}
-                title={`颜色联想: ${memory.color_association}`}
+                title={locked ? '颜色联想已封存' : `颜色联想: ${memory.color_association}`}
               >
-                <span className="text-xs font-bold">色</span>
+                {locked ? <Lock className="w-4 h-4" /> : <span className="text-xs font-bold">色</span>}
               </div>
             </div>
 
@@ -77,6 +99,16 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
               {memory.want_again && (
                 <span className="scent-tag bg-moss-100 text-moss-600">
                   <Heart className="w-3 h-3 fill-current" /> 想再闻
+                </span>
+              )}
+              {capsule && locked && (
+                <span className="scent-tag bg-paper-300 text-ink-700">
+                  <Hourglass className="w-3 h-3" /> 胶囊 · {daysUntilUnlock(capsule)} 天后解锁
+                </span>
+              )}
+              {capsule && !locked && (
+                <span className="scent-tag bg-moss-100 text-moss-600">
+                  <Unlock className="w-3 h-3" /> 胶囊已解锁
                 </span>
               )}
             </div>
@@ -133,38 +165,58 @@ export default function MemoryCard({ memory, index, isExpanded, onToggle, onEdit
 
           {isExpanded && (
             <div className="px-4 pb-4 animate-expand overflow-hidden">
-              <div className="p-4 rounded-xl bg-paper-100/70 border border-paper-200/80">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-hand text-lg text-ochre-600">关联记忆</span>
+              {locked && capsule ? (
+                <CapsuleLockedPanel capsule={capsule} onRequestUnlock={onRequestUnlock} />
+              ) : (
+                <div className="p-4 rounded-xl bg-paper-100/70 border border-paper-200/80">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-hand text-lg text-ochre-600">关联记忆</span>
+                  </div>
+                  <p className="font-serif text-[15px] leading-relaxed text-ink-800 whitespace-pre-wrap">
+                    {memory.memory_text}
+                  </p>
                 </div>
-                <p className="font-serif text-[15px] leading-relaxed text-ink-800 whitespace-pre-wrap">
-                  {memory.memory_text}
-                </p>
-              </div>
+              )}
               <div className="mt-3 flex items-center justify-between pt-2 border-t border-paper-200/60">
                 <div className="flex items-center gap-1.5 text-[11px] text-ink-700/50">
                   <span>更新于 {formatDate(memory.updated_at)}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-ochre-600 hover:bg-ochre-100 transition-colors"
-                  >
-                    <Pencil className="w-3.5 h-3.5" /> 编辑
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-brick-500 hover:bg-brick-500/10 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> 删除
-                  </button>
-                </div>
+                {!locked && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onSeal(); }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-lavender-600 hover:bg-lavender-300/40 transition-colors"
+                      title="封存为时间胶囊"
+                    >
+                      <Hourglass className="w-3.5 h-3.5" /> 时间胶囊
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-ochre-600 hover:bg-ochre-100 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" /> 编辑
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-brick-500 hover:bg-brick-500/10 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> 删除
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {!isExpanded && (
+          {!isExpanded && !locked && (
             <div className="px-4 pb-3 flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 -mt-1">
+              <button
+                onClick={(e) => { e.stopPropagation(); onSeal(); }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-lavender-600 hover:bg-lavender-300/40 transition-colors"
+                title="封存为时间胶囊"
+              >
+                <Hourglass className="w-3.5 h-3.5" />
+              </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onEdit(); }}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-ochre-600 hover:bg-ochre-100 transition-colors"

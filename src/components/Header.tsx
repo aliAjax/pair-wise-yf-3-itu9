@@ -1,11 +1,12 @@
-import { Plus } from 'lucide-react';
+import { Plus, Hourglass } from 'lucide-react';
 
 interface Props {
   onAdd: () => void;
   memoryCount: number;
+  capsuleCount: number;
 }
 
-export default function Header({ onAdd, memoryCount }: Props) {
+export default function Header({ onAdd, memoryCount, capsuleCount }: Props) {
   return (
     <header className="relative pt-14 pb-8 md:pt-20 md:pb-12">
       <div className="container max-w-6xl">
@@ -27,6 +28,12 @@ export default function Header({ onAdd, memoryCount }: Props) {
                 <span className="text-base">📚</span>
                 已封存 <b className="text-ochre-600 font-semibold">{memoryCount}</b> 段气味
               </span>
+              {capsuleCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-lavender-300/40 text-lavender-600 text-sm border border-lavender-300">
+                  <Hourglass className="w-3.5 h-3.5" />
+                  时间胶囊 <b className="font-semibold">{capsuleCount}</b> 枚封存中
+                </span>
+              )}
               <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-moss-100 text-moss-600 text-sm border border-moss-200">
                 <span className="text-base">🌿</span>
                 仅你可见
